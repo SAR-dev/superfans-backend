@@ -58,6 +58,7 @@ INSTALLED_APPS = [
     'post',
     'choice',
     'comment',
+    'moderator',
     'reward',
     'award',
     'activity',

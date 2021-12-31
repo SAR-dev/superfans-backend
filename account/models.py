@@ -74,7 +74,7 @@ class Account(AbstractBaseUser, PermissionsMixin):
     username = models.CharField(max_length=25, unique=True, validators=[
         RegexValidator(
             regex='^[a-z\d](?:[a-z\d]|-(?=[a-z\d])){0,25}$',
-            message="Invalid Username format! Username should be between 3-50 characters. Use hyphen '-' between letters if needed. ",
+            message="Username should be between 3-50 lowecase characters. Use hyphen '-' between letters if needed. ",
         ),
     ])
     first_name = models.CharField(max_length=100, blank=True)
@@ -90,12 +90,7 @@ class Account(AbstractBaseUser, PermissionsMixin):
             message="Invalid contact number! Use country code too.",
         ),
     ])
-    website = models.CharField(max_length=100, unique=True, null=True, blank=True, validators=[
-        RegexValidator(
-            regex='^((https?|ftp|smtp):\/\/)?(www.)?[a-z0-9]+\.[a-z]+(\/[a-zA-Z0-9#]+\/?)*$',
-            message="Invalid website address!",
-        ),
-    ])
+    website = models.URLField(max_length=100, unique=True, null=True, blank=True)
     location = models.CharField(max_length=100, null=True, blank=True)
     avatar = ProcessedImageField(upload_to=rename_and_relocate_avatar,
                                  default='images/avatar.jpg',

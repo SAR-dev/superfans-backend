@@ -16,7 +16,7 @@ class ActivityListView(generics.ListAPIView):
     serializer_class = ActivitySerializer
 
     def get_queryset(self):
-        return Activity.objects.filter(group__author__username=self.kwargs["username"])[:10]
+        return Activity.objects.select_related('group').filter(group__author__username=self.kwargs["username"])[:5]
     
 class ActivityNotificationsListView(generics.ListAPIView):
     permission_classes = [permissions.IsAuthenticated]

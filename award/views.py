@@ -12,7 +12,8 @@ class IsAuthor(permissions.BasePermission):
     def has_permission(self, request, view):
         try:
             obj = Award.objects.get(id=view.kwargs.get('pk'))
-            return obj.author == request.user
+            author = obj.author == request.user
+            return author
         except ObjectDoesNotExist:
             raise NotFound(detail="Error 404, Not Found!", code=404)
 
@@ -34,11 +35,11 @@ class GroupAwardListView(generics.ListAPIView):
     serializer_class = AwardListSerializer
 
     def get_queryset(self):
-        return Award.objects.filter(Q(author__username=self.kwargs["username"]) | Q(public=True))
+        return Award.objects.select_related('author').filter(Q(author__username=self.kwargs["username"]) | Q(public=True))
 
 class UserAwardListView(generics.ListAPIView):
     permission_classes = [permissions.IsAuthenticated]
     serializer_class = AwardListSerializer
 
     def get_queryset(self):
-        return Award.objects.filter(author__username=self.kwargs["username"])
+        return Award.objects.select_related('author').filter(author__username=self.kwargs["username"])

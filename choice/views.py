@@ -12,7 +12,8 @@ class IsAuthor(permissions.BasePermission):
     def has_permission(self, request, view):
         try:
             obj = Choice.objects.get(id=view.kwargs.get('pk'))
-            return obj.author == request.user
+            author = obj.author == request.user
+            return author
         except ObjectDoesNotExist:
             raise NotFound(detail="Error 404, Not Found!", code=404)
   

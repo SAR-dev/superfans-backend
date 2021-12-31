@@ -4,7 +4,7 @@ from rest_framework import permissions, generics, status, response, views
 from .models import Profile
 from group.models import Group
 from image.models import Image
-from .serializers import ProfileListSerializer, ProfileRetriveSerializer, ProfileUpdateSerializer, ProfileImagesSerializer, ProfileGroupsSerializer
+from .serializers import ProfileListSerializer, ProfileRetriveSerializer, ProfileUpdateSerializer, ProfileImagesSerializer
 from utils.paginations import PazeSizePagination
 from rest_framework.exceptions import NotFound
 from django.core.exceptions import ObjectDoesNotExist

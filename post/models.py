@@ -8,6 +8,7 @@ from group.models import Group, Category
 from image.models import Image
 from choice.models import Choice
 from vote.models import VoteModel
+from django.core.validators import RegexValidator
 from django.contrib.auth import get_user_model
 User = get_user_model()
 
@@ -53,11 +54,12 @@ class Post(VoteModel, models.Model):
     )
 
     TYPE_CHOICES = (
-        ('post', 'Post'),  # content, images, category
-        ('premier', 'Premier'),  # thumbnail, release
-        ('ama', 'AMA'),  # content, release
-        ('poll', 'Poll'),  # content
-        ('announcement', 'Announcement'),  # content
+        ('post', 'Post'),
+        ('premier', 'Premier'),
+        ('ama', 'AMA'),
+        ('poll', 'Poll'),
+        ('announcement', 'Announcement'),
+        ('drop', 'Drop'),
     )
 
     content = models.TextField(default=None, blank=True, null=True)
@@ -68,9 +70,10 @@ class Post(VoteModel, models.Model):
     category = models.ForeignKey(
         Category, on_delete=models.SET_NULL, default=None, blank=True, null=True)
     release_time = models.DateTimeField(null=True)
+    duration = models.DurationField(null=True)
     thumbnail = models.ForeignKey(
         Image, related_name='thumbnail', on_delete=models.SET_NULL, default=None, blank=True, null=True)
-    link = models.TextField(default=None, blank=True, null=True)
+    link = models.URLField(default=None, blank=True, null=True)
     
     is_blur = models.BooleanField(default=False)
     post_type = models.CharField(

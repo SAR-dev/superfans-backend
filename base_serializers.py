@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from post.models import Post
+from moderator.models import Moderator
 from award.models import Award
 from comment.models import Comment
 from group.models import Group, Category
@@ -29,11 +30,18 @@ class ProfileSerializer(serializers.ModelSerializer):
 
 class GroupSerializer(serializers.ModelSerializer):
     author = UserSerializer()
+    is_admin = serializers.SerializerMethodField()
+    is_moderator = serializers.SerializerMethodField()
 
     class Meta:
         model = Group
-        fields = ['id', 'about',  'status', 'title',
-                  'author', 'created_at', 'updated_at']
+        fields = ['id', 'about', 'members_name', 'color',  'status', 'title', 'author', 'is_admin', 'is_moderator', 'created_at', 'updated_at']
+        
+    def get_is_admin(self, obj):
+        return obj.author == self.context.get('request').user
+    
+    def get_is_moderator(self, obj):
+        return Moderator.verified.filter(moderator = self.context.get('request').user, admin = obj.author).exists()
 
 
 class CategorySerializer(serializers.ModelSerializer):
@@ -58,17 +66,24 @@ class PostGroupSerializer(serializers.ModelSerializer):
     subscribers_count = serializers.ReadOnlyField()
     subscribed = serializers.SerializerMethodField()
     post_count = serializers.SerializerMethodField()
+    is_admin = serializers.SerializerMethodField()
+    is_moderator = serializers.SerializerMethodField()
 
     class Meta:
         model = Group
-        fields = ['id', 'status', 'author',
-                  'subscribers_count', 'subscribed', 'post_count']
+        fields = ['id', 'status', 'author', 'subscribers_count', 'subscribed', 'post_count', 'is_admin', 'is_moderator']
 
     def get_post_count(self, obj):
         return Post.published.filter(group=obj).count()
 
     def get_subscribed(self, obj):
         return obj.subscribers.filter(pk=self.context.get('request').user.id).exists()
+    
+    def get_is_admin(self, obj):
+        return obj.author == self.context.get('request').user
+    
+    def get_is_moderator(self, obj):
+        return Moderator.verified.filter(moderator = self.context.get('request').user, admin = obj.author).exists()
 
 
 class ImageSerializer(serializers.ModelSerializer):

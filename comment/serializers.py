@@ -71,3 +71,16 @@ class CommentUpdateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 {"content": "Content is too short!"})
         return data
+    
+class CommentBanSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Comment
+        fields = ['is_active', 'content']
+        
+    def validate(self, data):
+        data['is_active'] = False
+        if(len(data['content']) < 10):
+            raise serializers.ValidationError(
+                {"Message": "Message is too short!"})
+            
+        return data

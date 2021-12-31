@@ -42,19 +42,20 @@ class Group(models.Model):
     
     title = models.CharField(max_length=50, null=True, blank=True)
     about = models.CharField(max_length=400, null=True, blank=True)
-    token = models.TextField(max_length=20 ,null=True, blank=True, unique=True, validators=[
+    rules = models.TextField(default=None, blank=True, null=True)
+    members_name = models.CharField(max_length=10, default="Members")
+    color = models.CharField(max_length=100, default="#6B46C1", validators=[
         RegexValidator(
-            regex='^([0-9]{10})$',
-            message="Invalid token format! Token should be numeric of 10 digit.",
+            regex='^#[0-9a-fA-F]{6}$',
+            message="Invalid color format. RGB hex color format needed.",
         ),
     ])
-
-    # token = models.TextField(max_length=20 ,null=True, blank=True, unique=True, validators=[
-    #     RegexValidator(
-    #         regex='^([A-Z0-9]{4,10})$',
-    #         message="Invalid token format! Token should be alphanumeric and between 4 to 10 characters.",
-    #     ),
-    # ])
+    token = models.TextField(max_length=20 ,null=True, blank=True, unique=True, validators=[
+        RegexValidator(
+            regex='^([A-Z0-9]{10})$',
+            message="Invalid token format! Token should be alphanumeric of 10 digit.",
+        ),
+    ])
 
     subscribers = models.ManyToManyField(User, related_name='subscribers', default=None, blank=True)
     blacklists = models.ManyToManyField(User, related_name='blacklists', default=None, blank=True)

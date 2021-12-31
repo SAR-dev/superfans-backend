@@ -6,13 +6,6 @@ from django.contrib.auth import get_user_model
 User = get_user_model()
 from base_serializers import UserSerializer, ProfileSerializer, GroupSerializer, ImageSerializer, CategorySerializer
 
-class GroupSerializer(serializers.ModelSerializer):
-    author = UserSerializer()
-
-    class Meta:
-        model = Group
-        fields = ['id', 'author']
-
 class ActivitySerializer(serializers.ModelSerializer):
     sender = UserSerializer()
     class Meta:

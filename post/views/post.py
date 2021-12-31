@@ -1,5 +1,6 @@
 from rest_framework.views import APIView
 from post.models import Post
+from moderator.models import Moderator
 from activity.models import Activity
 from group.models import Group, Category
 from choice.models import Choice
@@ -7,6 +8,7 @@ from reward.models import Reward
 from award.models import Award
 from post.serializers.post import PostCreateSerializer, PostReriveSerializer, PostListSerializer, PostUpdateSerializer, DiscussionPostCreateSerializer, PostBookmarksSerializer
 from utils.paginations import PazeSizePagination
+from utils.get_seconds import get_seconds
 from rest_framework import generics, views, response, permissions, serializers
 from rest_framework.exceptions import NotFound
 from django.core.exceptions import ObjectDoesNotExist
@@ -15,6 +17,7 @@ from django.core.serializers import serialize
 from django_filters import rest_framework as filters
 from django_filters import MultipleChoiceFilter
 from django.db.models import Q
+from django.utils import timezone
 
 
 class IsGroupAuthor(permissions.BasePermission):
@@ -25,7 +28,24 @@ class IsGroupAuthor(permissions.BasePermission):
             group = Group.objects.select_related('author').get(
                 author__username=view.kwargs.get('username')
             )
-            return group.author.id == request.user.id
+            author = group.author == request.user
+            return author
+        except ObjectDoesNotExist:
+            raise NotFound(detail="Error 404, Not Found!", code=404)
+
+
+class IsGroupAuthorOrModerator(permissions.BasePermission):
+    message = 'You can not view this route!'
+
+    def has_permission(self, request, view):
+        try:
+            group = Group.objects.select_related('author').get(
+                author__username=view.kwargs.get('username')
+            )
+            author = group.author == request.user
+            moderator = Moderator.verified.filter(
+                moderator=request.user, admin=group.author).exists()
+            return author or moderator
         except ObjectDoesNotExist:
             raise NotFound(detail="Error 404, Not Found!", code=404)
 
@@ -38,7 +58,8 @@ class IsGroupSubscriber(permissions.BasePermission):
             group = Group.objects.select_related('author').get(
                 author__username=view.kwargs.get('username')
             )
-            return group.subscribers.filter(pk=request.user.id).exists()
+            subscriber = group.subscribers.filter(pk=request.user.id).exists()
+            return subscriber
         except ObjectDoesNotExist:
             raise NotFound(detail="Error 404, Not Found!", code=404)
 
@@ -49,7 +70,9 @@ class IsPostGroupSubscriber(permissions.BasePermission):
     def has_permission(self, request, view):
         try:
             post = Post.objects.get(pk=view.kwargs.get('pk'))
-            return Group.objects.get(pk=post.group.id).subscribers.filter(pk=request.user.id).exists()
+            subscriber = post.group.subscribers.filter(
+                pk=request.user.id).exists()
+            return subscriber
         except ObjectDoesNotExist:
             raise NotFound(detail="Error 404, Not Found!", code=404)
 
@@ -60,11 +83,13 @@ class IsValidChoiceGroupSubscriber(permissions.BasePermission):
     def has_permission(self, request, view):
         try:
             post = Post.published.get(pk=view.kwargs.get('pk'))
+            subscriber = post.group.subscribers.filter(
+                pk=request.user.id).exists()
             valid = False
             for choice in post.choices.all():
                 if choice.id == view.kwargs.get('id'):
                     valid = True
-            return Group.objects.get(pk=post.group.id).subscribers.filter(pk=request.user.id).exists() and valid
+            return subscriber and valid
         except ObjectDoesNotExist:
             raise NotFound(detail="Error 404, Not Found!", code=404)
 
@@ -75,7 +100,9 @@ class IsCategoryGroupSubscriber(permissions.BasePermission):
     def has_permission(self, request, view):
         try:
             category = Category.objects.get(slug=view.kwargs.get('slug'))
-            return category.group.subscribers.filter(pk=request.user.id).exists()
+            subscriber = category.group.subscribers.filter(
+                pk=request.user.id).exists()
+            return subscriber
         except ObjectDoesNotExist:
             raise NotFound(detail="Error 404, Not Found!", code=404)
 
@@ -85,8 +112,9 @@ class IsPostAuthor(permissions.BasePermission):
 
     def has_permission(self, request, view):
         try:
-            obj = Post.objects.get(pk=view.kwargs.get('pk'))
-            return obj.author.id == request.user.id
+            post = Post.objects.get(pk=view.kwargs.get('pk'))
+            author = post.author == request.user
+            return author
         except ObjectDoesNotExist:
             raise NotFound(detail="Error 404, Not Found!", code=404)
 
@@ -97,8 +125,10 @@ class IsPostGroupAndAwardSubscriber(permissions.BasePermission):
     def has_permission(self, request, view):
         try:
             post = Post.published.get(pk=view.kwargs.get('pk'))
+            subscriber = post.group.subscribers.filter(
+                pk=request.user.id).exists()
             award = Award.free.get(pk=view.kwargs.get('id'))
-            return Group.objects.get(pk=post.group.id).subscribers.filter(pk=request.user.id).exists() and (award.author.id == post.group.author.id or award.public == True)
+            return subscriber and (award.author.id == post.group.author.id or award.public == True)
         except ObjectDoesNotExist:
             raise NotFound(detail="Error 404, Not Found!", code=404)
 
@@ -131,15 +161,19 @@ class GroupPostListView(generics.ListAPIView):
 
     def get_queryset(self):
         if self.kwargs["type"] == "all":
-            return Post.published.filter(group__author__username=self.kwargs["username"])
+            return Post.published.select_related('group').filter(group__author__username=self.kwargs["username"])
         elif self.kwargs["type"] == "discussion":
-            return Post.published.filter(Q(group__author__username=self.kwargs["username"], post_type="post") | Q(group__author__username=self.kwargs["username"], post_type="poll"))
+            return Post.published.select_related('group').filter(group__author__username=self.kwargs["username"], post_type="post")
+        elif self.kwargs["type"] == "poll":
+            return Post.published.select_related('group').filter(group__author__username=self.kwargs["username"], post_type="poll")
         elif self.kwargs["type"] == "ama":
-            return Post.published.filter(group__author__username=self.kwargs["username"], post_type="ama")
+            return Post.published.select_related('group').filter(group__author__username=self.kwargs["username"], post_type="ama")
         elif self.kwargs["type"] == "announcement":
-            return Post.published.filter(group__author__username=self.kwargs["username"], post_type="announcement")
+            return Post.published.select_related('group').filter(group__author__username=self.kwargs["username"], post_type="announcement")
         elif self.kwargs["type"] == "premier":
-            return Post.published.filter(group__author__username=self.kwargs["username"], post_type="premier")
+            return Post.published.select_related('group').filter(group__author__username=self.kwargs["username"], post_type="premier")
+        elif self.kwargs["type"] == "drop":
+            return Post.published.select_related('group').filter(group__author__username=self.kwargs["username"], post_type="drop")
         else:
             raise NotFound(detail="Error 404, Not Found!", code=404)
 
@@ -152,7 +186,7 @@ class CategoryPostListView(generics.ListAPIView):
     filterset_class = PostFilter
 
     def get_queryset(self):
-        return Post.published.filter(group__author__username=self.kwargs["username"], category__slug=self.kwargs["slug"])
+        return Post.published.select_related('group').filter(group__author__username=self.kwargs["username"], category__slug=self.kwargs["slug"])
 
 
 class PostListView(generics.ListAPIView):
@@ -163,8 +197,9 @@ class PostListView(generics.ListAPIView):
     filterset_class = PostFilter
 
     def get_queryset(self):
-        return Post.published.filter(group__author__username=self.kwargs["username"])
-    
+        return Post.published.select_related('group').filter(group__author__username=self.kwargs["username"])
+
+
 class PostBookmarksView(generics.ListAPIView):
     # permission_classes = [IsGroupSubscriber]
     permission_classes = [permissions.IsAuthenticated]
@@ -219,7 +254,7 @@ class GroupPostCreateView(generics.CreateAPIView):
                 author__username=self.kwargs['username']
             ))
 
-    permission_classes = [IsGroupAuthor]
+    permission_classes = [IsGroupAuthorOrModerator]
     queryset = Post.objects.all()
     serializer_class = PostCreateSerializer
 
@@ -470,32 +505,44 @@ class PostChoiceVoteView(views.APIView):
     def post(self, request, pk, id):
         try:
             post = Post.objects.get(pk=pk)
-            auth_user = self.request.user
-            choice = Choice.objects.get(pk=id)
-            for item in post.choices.all():
-                if item.id == id:
-                    item.votes.up(auth_user.id)
-                else:
-                    item.votes.delete(auth_user.id)
-            return response.Response({
-                'count': choice.votes.count_up(),
-                'upvoted': True,
-            })
+            time_diff = (timezone.localtime() - post.created_at).total_seconds()
+            if(time_diff < get_seconds(post.duration)):
+                auth_user = self.request.user
+                choice = Choice.objects.get(pk=id)
+                for item in post.choices.all():
+                    if item.id == id:
+                        item.votes.up(auth_user.id)
+                    else:
+                        item.votes.delete(auth_user.id)
+                return response.Response({
+                    'count': choice.votes.count_up(),
+                    'upvoted': True,
+                })
+            else:
+                return response.Response({
+                    'error': {'message' : 'Sorry, Time duration expired!'}
+                })
         except ObjectDoesNotExist:
             raise NotFound(detail="Error 404, Not Found!", code=404)
 
     def delete(self, request, pk, id):
         try:
             post = Post.objects.get(pk=pk)
-            auth_user = self.request.user
-            choice = Choice.objects.get(pk=id)
-            for item in post.choices.all():
-                if item.id == id:
-                    item.votes.delete(auth_user.id)
-            return response.Response({
-                'count': choice.votes.count_up(),
-                'upvoted': False,
-            })
+            time_diff = (timezone.localtime() - post.created_at).total_seconds()
+            if(time_diff < get_seconds(post.duration)):
+                auth_user = self.request.user
+                choice = Choice.objects.get(pk=id)
+                for item in post.choices.all():
+                    if item.id == id:
+                        item.votes.delete(auth_user.id)
+                return response.Response({
+                    'count': choice.votes.count_up(),
+                    'upvoted': False,
+                })
+            else:
+                return response.Response({
+                    'error': {'message' : 'Sorry, Time duration expired!'}
+                })
         except ObjectDoesNotExist:
             raise NotFound(detail="Error 404, Not Found!", code=404)
 

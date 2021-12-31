@@ -35,8 +35,3 @@ class ProfileImagesSerializer(serializers.ModelSerializer):
         fields = ['id', 'image', 'thumbnail', 'height', 'width', 'author']
         read_only_fields = ['thumbnail']
 
-        
-class ProfileGroupsSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Group
-        fields = ['id', 'name', 'slug', 'avatar']

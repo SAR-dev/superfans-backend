@@ -2,8 +2,9 @@ from rest_framework.views import APIView
 from .models import Comment
 from activity.models import Activity
 from group.models import Group
+from moderator.models import Moderator
 from post.models import Post
-from .serializers import CommentListSerializer, CommentCreateSerializer, CommentChildCreateSerializer, CommentRetriveSerializer, CommentUpdateSerializer
+from .serializers import CommentListSerializer, CommentCreateSerializer, CommentChildCreateSerializer,CommentBanSerializer, CommentRetriveSerializer, CommentUpdateSerializer
 from base_serializers import PostSerializer
 from utils.paginations import PazeSizePagination
 from rest_framework import generics, views, response, permissions, serializers
@@ -12,7 +13,8 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.shortcuts import get_object_or_404
 from django.core.serializers import serialize
 from django_filters import rest_framework as filters
-
+from django.utils import timezone
+from utils.get_seconds import get_seconds
 
 class IsCommentAuthor(permissions.BasePermission):
     message = 'You do not have enough permission!'
@@ -20,7 +22,22 @@ class IsCommentAuthor(permissions.BasePermission):
     def has_permission(self, request, view):
         try:
             comment = Comment.objects.get(pk=view.kwargs.get('pk'))
-            return comment.author.id == request.user.id
+            author = comment.author == request.user
+            return author
+        except ObjectDoesNotExist:
+            raise NotFound(detail="Error 404, Not Found!", code=404)
+        
+class IsCommentAdminOrModerator(permissions.BasePermission):
+    message = 'You do not have enough permission!'
+
+    def has_permission(self, request, view):
+        try:
+            comment = Comment.objects.get(pk=view.kwargs.get('pk'))
+            post = Post.published.get(pk=comment.post.id)
+            admin = post.group.author == request.user
+            moderator = Moderator.verified.filter(
+                moderator=request.user, admin=post.group.author).exists()
+            return admin or moderator
         except ObjectDoesNotExist:
             raise NotFound(detail="Error 404, Not Found!", code=404)
 
@@ -31,7 +48,8 @@ class IsPostGroupSubscriber(permissions.BasePermission):
     def has_permission(self, request, view):
         try:
             post = Post.cancomment.get(pk=view.kwargs.get('pk'))
-            return post.group.subscribers.filter(pk=request.user.id).exists()
+            subscriber = post.group.subscribers.filter(pk=request.user.id).exists()
+            return subscriber
         except ObjectDoesNotExist:
             raise NotFound(detail="Error 404, Not Found!", code=404)
 
@@ -42,7 +60,9 @@ class CanCommentAndVote(permissions.BasePermission):
     def has_permission(self, request, view):
         try:
             comment = Comment.objects.get(pk=view.kwargs.get('pk'))
-            return comment.post.can_comment and comment.post.group.subscribers.filter(pk=request.user.id).exists()
+            can_comment = comment.post.can_comment
+            subscriber = comment.post.group.subscribers.filter(pk=request.user.id).exists()
+            return can_comment and subscriber
         except ObjectDoesNotExist:
             raise NotFound(detail="Error 404, Not Found!", code=404)
 
@@ -52,7 +72,10 @@ class CanRaiseHands(permissions.BasePermission):
     def has_permission(self, request, view):
         try:
             comment = Comment.objects.get(pk=view.kwargs.get('pk'))
-            return comment.post.can_comment and comment.post.group.subscribers.filter(pk=request.user.id).exists() and comment.parent is None
+            can_comment = comment.post.can_comment
+            subscriber = comment.post.group.subscribers.filter(pk=request.user.id).exists()
+            no_parent = comment.parent is None
+            return can_comment and subscriber and no_parent
         except ObjectDoesNotExist:
             raise NotFound(detail="Error 404, Not Found!", code=404)
 
@@ -61,8 +84,16 @@ class CommentCreateView(generics.CreateAPIView):
     def perform_create(self, serializer):
         try:
             post = Post.cancomment.get(id=self.kwargs["pk"])
-            serializer.save(author=self.request.user,
-                            post=post, is_active=True)
+            if (post.post_type == "ama"):
+                time_diff = (timezone.localtime() - post.release_time).total_seconds()
+                if(time_diff < get_seconds(post.duration)):
+                    serializer.save(author=self.request.user,
+                                    post=post, is_active=True)
+                else:
+                    raise serializers.ValidationError({"error": "Sorry, Time duration expired!"})
+            else:
+                serializer.save(author=self.request.user,
+                                post=post, is_active=True)
         except ObjectDoesNotExist:
             raise NotFound(detail="Error 404, Not Found!", code=404)
 
@@ -128,6 +159,11 @@ class CommentPostRetriveView(generics.RetrieveAPIView):
 class CommentUpdateView(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [IsCommentAuthor]
     serializer_class = CommentUpdateSerializer
+    queryset = Comment.active.all()
+    
+class CommentBanView(generics.RetrieveUpdateAPIView):
+    permission_classes = [IsCommentAdminOrModerator]
+    serializer_class = CommentBanSerializer
     queryset = Comment.active.all()
 
 
@@ -238,7 +274,9 @@ class CommentPinnedView(views.APIView):
             comment = Comment.active.get(pk=pk)
             postId = comment.post.id
             post = Post.objects.get(pk=postId)
-            if (post.group.author.id == request.user.id or post.author.id == request.user.id) and comment.parent == None:
+            admin = post.group.author.id == request.user.id
+            moderator = Moderator.verified.filter(moderator = request.user, admin = post.group.author).exists()
+            if (admin or moderator) and comment.parent == None:
                 post.pinned_comment = comment.id
                 post.save()
             pinned_comment = post.pinned_comment
@@ -253,7 +291,9 @@ class CommentPinnedView(views.APIView):
             comment = Comment.active.get(pk=pk)
             postId = comment.post.id
             post = Post.objects.get(pk=postId)
-            if post.group.author.id == request.user.id or post.author.id == request.user.id:
+            admin = post.group.author.id == request.user.id
+            moderator = Moderator.verified.filter(moderator = request.user, admin = post.group.author).exists()
+            if (admin or moderator):
                 post.pinned_comment = None
                 post.save()
             pinned_comment = post.pinned_comment

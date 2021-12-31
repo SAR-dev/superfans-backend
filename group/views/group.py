@@ -1,4 +1,6 @@
 from django_filters import rest_framework as filters
+from datetime import datetime, timedelta, date
+from django.db.models import Count
 from group.models import Group
 from activity.models import Activity
 from utils.paginations import PazeSizePagination
@@ -6,7 +8,7 @@ from rest_framework import generics, views, response, permissions, exceptions, s
 from rest_framework import filters as rest_framework_filters
 from django.shortcuts import get_object_or_404
 from django.core.serializers import serialize
-from group.serializers.group import GroupListSerializer, GroupUpdateSerializer, GroupRetriveSerializer, GroupSubscribersSerializer, GroupBlacklistsSerializer
+from group.serializers.group import GroupListSerializer, GroupUpdateSerializer, GroupRetriveSerializer,GroupRulesRetriveSerializer, GroupSubscribersSerializer, GroupBlacklistsSerializer, GroupLeaderboardSerializer
 from rest_framework.exceptions import NotFound
 from django.core.exceptions import ObjectDoesNotExist
 from django.contrib.auth import get_user_model
@@ -21,14 +23,10 @@ class IsNotBlacklisted(permissions.BasePermission):
             group = Group.objects.select_related('author').get(
                 author__username=view.kwargs.get('username')
             )
-            return not group.blacklists.filter(pk=request.user.id).exists() and request.user.is_authenticated
+            blacklisted = group.blacklists.filter(pk=request.user.id).exists()
+            return not blacklisted
         except ObjectDoesNotExist:
             raise NotFound(detail="Error 404, Not Found!", code=404)
-
-    def has_object_permission(self, request, view, obj):
-        if request.method in permissions.SAFE_METHODS:
-            return not obj.blacklists.filter(pk=request.user.id).exists() and request.user.is_authenticated
-        return not obj.blacklists.filter(pk=request.user.id).exists() and request.user.is_authenticated
 
 
 class IsGroupAuthor(permissions.BasePermission):
@@ -39,7 +37,8 @@ class IsGroupAuthor(permissions.BasePermission):
             group = Group.objects.select_related('author').get(
                 author__username=view.kwargs.get('username')
             )
-            return group.author.id == request.user.id
+            author = group.author == request.user
+            return author
         except ObjectDoesNotExist:
             raise NotFound(detail="Error 404, Not Found!", code=404)
 
@@ -86,6 +85,18 @@ class GroupSubscribedListView(generics.ListAPIView):
 class GroupRetriveView(generics.RetrieveAPIView):
     permission_classes = [IsNotBlacklisted]
     serializer_class = GroupRetriveSerializer
+
+    def get_object(self):
+        try:
+            return Group.objects.select_related('author').get(
+                author__username=self.kwargs['username']
+            )
+        except ObjectDoesNotExist:
+            raise NotFound(detail="Error 404, Not Found!", code=404)
+        
+class GroupRulesRetriveView(generics.RetrieveAPIView):
+    permission_classes = [IsNotBlacklisted]
+    serializer_class = GroupRulesRetriveSerializer
 
     def get_object(self):
         try:
@@ -236,13 +247,15 @@ class GroupSubscribersView(generics.ListAPIView):
     permission_classes = [IsNotBlacklisted]
     serializer_class = GroupSubscribersSerializer
     pagination_class = PazeSizePagination
+    filter_backends = [rest_framework_filters.SearchFilter]
+    search_fields = ['email', 'first_name', 'last_name', 'username']
 
     def get_queryset(self):
         try:
             group = Group.objects.select_related('author').get(
                 author__username=self.kwargs['username']
             )
-            return group.subscribers.all()
+            return group.subscribers.all().exclude(id=self.request.user.id)
         except ObjectDoesNotExist:
             raise NotFound(detail="Error 404, Not Found!", code=404)
 
@@ -258,5 +271,34 @@ class GroupBlacklistView(generics.ListAPIView):
                 author__username=self.kwargs['username']
             )
             return group.blacklists.all()
+        except ObjectDoesNotExist:
+            raise NotFound(detail="Error 404, Not Found!", code=404)
+
+
+class GroupLeaderboardView(generics.ListAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = GroupLeaderboardSerializer
+    
+    def get_queryset(self):
+        try:
+            prev_week_date = datetime.now() - timedelta(days=7)
+            prev_week_week = prev_week_date.isocalendar()[1]
+            prev_week_year = prev_week_date.year
+            
+            prev_month_date = date.today().replace(day=1) - timedelta(days=1)
+            prev_month_month = prev_month_date.month
+            prev_month_year = prev_month_date.year
+            if self.kwargs['timespan'] == "weekly":
+                ranking = Activity.objects.select_related('group').filter(group__author__username = self.kwargs['username'], verb="clapped", created_at__week=prev_week_week, created_at__year=prev_week_year).values('reciever').annotate(claps=Count('reciever')).order_by('-claps')[:5]
+            elif self.kwargs['timespan'] == "monthly":
+                ranking = Activity.objects.select_related('group').filter(group__author__username = self.kwargs['username'], verb="clapped", created_at__month=prev_month_month, created_at__year=prev_month_year).values('reciever').annotate(claps=Count('reciever')).order_by('-claps')[:5]
+            elif self.kwargs['timespan'] == "alltime":
+                ranking = Activity.objects.select_related('group').filter(group__author__username = self.kwargs['username'], verb="clapped").values('reciever').annotate(claps=Count('reciever')).order_by('-claps')[:5]
+            else:
+                ranking = Activity.objects.select_related('group').filter(group__author__username = self.kwargs['username'], verb="clapped").values('reciever').annotate(claps=Count('reciever')).order_by('-claps')[:5]
+            results = []
+            for item in ranking:
+                results.append({'reciever': User.objects.get(pk=item['reciever']), 'claps': item["claps"]})
+            return results
         except ObjectDoesNotExist:
             raise NotFound(detail="Error 404, Not Found!", code=404)

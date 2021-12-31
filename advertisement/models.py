@@ -6,6 +6,7 @@ from imagekit.processors import ResizeToFit
 from django.utils.deconstruct import deconstructible
 import os
 from uuid import uuid4
+from django.core.validators import RegexValidator
 from django.contrib.auth import get_user_model
 User = get_user_model()
 
@@ -21,15 +22,15 @@ class RenameAndRelocateImage(object):
 rename_and_relocate_advertisement = RenameAndRelocateImage("images/advertisement/")
 
 class Advertisement(models.Model):  
-    author = models.ForeignKey(
-        User, on_delete=models.CASCADE, default=None, blank=True, null=True)
+    author = models.OneToOneField(User, on_delete=models.CASCADE)
     image = ProcessedImageField(upload_to=rename_and_relocate_advertisement,
-                                 default='images/avatar.jpg',
-                                 processors=[ResizeToFit(width=200)],
+                                 default='images/advertisement.jpg',
+                                 processors=[ResizeToFit(width=400)],
                                  format='JPEG',
                                  options={'quality': 60})
     source = models.TextField()
-    link = models.TextField()
+    link = models.URLField(default=None, blank=True, null=True)
+    is_active = models.BooleanField(default=False)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

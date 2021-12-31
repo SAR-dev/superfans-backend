@@ -11,8 +11,9 @@ class IsAuthor(permissions.BasePermission):
     
     def has_permission(self, request, view):
         try:
-            obj = Image.objects.get(id=view.kwargs.get('pk'))
-            return obj.author == request.user
+            image = Image.objects.get(pk=view.kwargs.get('pk'))
+            author = image.author == request.user
+            return author
         except ObjectDoesNotExist:
             raise NotFound(detail="Error 404, Not Found!", code=404)
         
