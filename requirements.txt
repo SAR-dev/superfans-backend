@@ -63,3 +63,5 @@ uritemplate==3.0.1
 urllib3==1.26.6
 wrapt==1.12.1
 yubico-client==1.13.0
+psycopg2-binary==2.9.1
+gunicorn==20.1.0
