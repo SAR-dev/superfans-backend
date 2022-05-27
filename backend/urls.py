@@ -10,10 +10,10 @@ urlpatterns = [
     # path('api/auth/', include('djoser.urls')),
     # path('api/auth/', include('djoser.urls.authtoken')),
     # path('api/auth/', include('djoser.social.urls')),
-    path('api/auth/', include('trench.urls')), # Base endpoints
-    path('api/auth/', include('djoser.urls')),
+    # path('api/auth/', include('trench.urls')), # Base endpoints
+    # path('api/auth/', include('djoser.urls')),
     # path('api/auth/', include('djoser.urls.authtoken')),
-    path('api/auth/', include('trench.urls.djoser')),  # for Token Based Authorization
+    # path('api/auth/', include('trench.urls.djoser')),  # for Token Based Authorization
     path('api/account/', include('account.urls', namespace='account')),
     path('api/profile/', include('profiles.urls', namespace='profile')),
     path('api/group/', include('group.urls', namespace='group')),
