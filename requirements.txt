@@ -29,7 +29,6 @@ django-two-factor-auth==1.13.1
 djangorestframework==3.12.4
 djangorestframework-simplejwt==4.7.2
 djoser==2.1.0
-drf-firebase-auth==1.0.0
 firebase-admin==4.5.3
 future==0.18.2
 google-api-core==1.31.5

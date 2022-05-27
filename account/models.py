@@ -27,7 +27,7 @@ class AccountManager(BaseUserManager):
             self.model.USERNAME_FIELD)
         return self.get(**{case_insensitive_username_field: username})
 
-    def create_user(self, email, first_name, last_name, username, password):
+    def create_user(self, email, first_name, last_name, username):
         if not email:
             raise ValueError('Email address is required')
         if not first_name:
@@ -38,7 +38,6 @@ class AccountManager(BaseUserManager):
             raise ValueError('Username is required')
         user = self.model(email=self.normalize_email(email),
                           first_name=first_name, last_name=last_name, username=username)
-        user.set_password(password)
         user.save(using=self._db)
         return user
 
@@ -71,9 +70,9 @@ class Account(AbstractBaseUser, PermissionsMixin):
     )
 
     email = models.EmailField(max_length=60, unique=True)
-    username = models.CharField(max_length=25, unique=True, validators=[
+    username = models.CharField(max_length=50, unique=True, validators=[
         RegexValidator(
-            regex='^[a-z\d](?:[a-z\d]|-(?=[a-z\d])){0,25}$',
+            regex='^[a-zA-Z0-9\d](?:[a-zA-Z0-9\d]|-(?=[a-zA-Z0-9\d])){0,50}$',
             message="Username should be between 3-50 lowecase characters. Use hyphen '-' between letters if needed. ",
         ),
     ])
