@@ -40,6 +40,7 @@ INSTALLED_APPS = [
 
     # PACKAGES
     'rest_framework',
+    'drf_firebase_auth',
     'rest_framework.authtoken',
     'imagekit',
     'django_cleanup',
@@ -182,7 +183,9 @@ REST_FRAMEWORK = {
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 50,
     'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework.authentication.TokenAuthentication',
+        # 'rest_framework.authentication.TokenAuthentication',
+        # 'rest_framework.authentication.SessionAuthentication',
+        'drf_firebase_auth.authentication.FirebaseAuthentication',
     ],
     'DEFAULT_SCHEMA_CLASS': 'rest_framework.schemas.coreapi.AutoSchema',
     'DEFAULT_FILTER_BACKENDS': [
@@ -256,7 +259,13 @@ TRENCH_AUTH = {
     },
 }
 
-AUTHENTICATION_BACKENDS = ['account.auth.EmailOrUsernameModelBackend']
+DRF_FIREBASE_AUTH = {
+    # path to JSON file with firebase secrets
+    'FIREBASE_SERVICE_ACCOUNT_KEY':
+        os.getenv('FIREBASE_SERVICE_ACCOUNT_KEY', os.path.join(BASE_DIR, 'soho.json')),
+}
+
+# AUTHENTICATION_BACKENDS = ['account.auth.EmailOrUsernameModelBackend']
 FRONTEND_URL = 'https://superfansbd.web.app'
 # ONLY FOR DEVELOPMENT
 ALLOWED_HOSTS = os.environ.get('allowed_hosts', ['*'])
